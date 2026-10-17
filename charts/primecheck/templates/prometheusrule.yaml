@@ -1,0 +1,80 @@
+{{- if .Values.prometheusRule.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "primecheck.fullname" . }}
+  labels:
+    {{- include "primecheck.labels" . | nindent 4 }}
+spec:
+  groups:
+    - name: primecheck.sli
+      interval: 30s
+      rules:
+        - record: primecheck:request_error_ratio:rate5m
+          expr: |
+            (
+              sum(rate(http_requests_total{job=~".*primecheck.*",status=~"5.."}[5m]))
+              or vector(0)
+            )
+            /
+            clamp_min(sum(rate(http_requests_total{job=~".*primecheck.*"}[5m])), 0.001)
+        - record: primecheck:request_latency_p95:rate5m
+          expr: |
+            histogram_quantile(
+              0.95,
+              sum by (le) (rate(http_request_duration_seconds_bucket{job=~".*primecheck.*"}[5m]))
+            )
+        - record: primecheck:availability_ratio:rate5m
+          expr: 1 - primecheck:request_error_ratio:rate5m
+    - name: primecheck.alerts
+      rules:
+        - alert: PrimecheckHighErrorRate
+          expr: primecheck:request_error_ratio:rate5m > {{ .Values.slo.errorRateThreshold }}
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: Error ratio is above the {{ .Values.slo.availabilityTargetPercent }} percent availability target
+            description: More than {{ .Values.slo.errorRateThreshold }} of requests returned 5xx over the last five minutes.
+            runbook: https://github.com/VinnuReddy18/primecheck#alert-response
+        - alert: PrimecheckHighLatency
+          expr: primecheck:request_latency_p95:rate5m > {{ .Values.slo.latencyP95Seconds }}
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: Request latency p95 is above the budget
+            description: The 95th percentile request duration stayed above {{ .Values.slo.latencyP95Seconds }} seconds for ten minutes.
+            runbook: https://github.com/VinnuReddy18/primecheck#alert-response
+        - alert: PrimecheckWarmingTooLong
+          expr: primecheck_ready == 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: A replica has been warming its sieve for five minutes
+            description: Readiness is failing because the sieve has not finished building, so the replica is out of the Service endpoints.
+            runbook: https://github.com/VinnuReddy18/primecheck#alert-response
+        - alert: PrimecheckNoReadyReplicas
+          expr: kube_deployment_status_replicas_ready{deployment="{{ include "primecheck.fullname" . }}"} == 0
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: No ready replicas are serving traffic
+            description: Every replica of the deployment is failing readiness and the user journey is broken.
+            runbook: https://github.com/VinnuReddy18/primecheck#alert-response
+        {{- if .Values.autoscaling.enabled }}
+        - alert: PrimecheckAutoscalerAtCeiling
+          expr: |
+            kube_horizontalpodautoscaler_status_current_replicas{horizontalpodautoscaler="{{ include "primecheck.fullname" . }}"}
+            >= {{ .Values.autoscaling.maxReplicas }}
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: The autoscaler has been pinned at its maximum replica count
+            description: Demand has exceeded what {{ .Values.autoscaling.maxReplicas }} replicas can absorb, so there is no headroom left.
+            runbook: https://github.com/VinnuReddy18/primecheck#alert-response
+        {{- end }}
+{{- end }}
