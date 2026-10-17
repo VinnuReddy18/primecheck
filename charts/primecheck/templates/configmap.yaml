@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "primecheck.fullname" . }}
+  labels:
+    {{- include "primecheck.labels" . | nindent 4 }}
+data:
+  SIEVE_LIMIT: {{ .Values.app.sieveLimit | int | quote }}
+  LOG_LEVEL: {{ .Values.app.logLevel | quote }}
+  FEATURE_FACTOR_HINT: {{ .Values.app.featureFactorHint | quote }}
+  TRACING_ENABLED: {{ .Values.app.tracing.enabled | quote }}
+  OTEL_SERVICE_NAME: {{ include "primecheck.fullname" . | quote }}
+  OTEL_EXPORTER_OTLP_ENDPOINT: {{ .Values.app.tracing.endpoint | quote }}
+  OTEL_EXPORTER_OTLP_PROTOCOL: "http/protobuf"
+  OTEL_PYTHON_FASTAPI_EXCLUDED_URLS: {{ .Values.app.tracing.excludedUrls | quote }}
+  OTEL_PYTHON_EXCLUDED_URLS: {{ .Values.app.tracing.excludedUrls | quote }}
