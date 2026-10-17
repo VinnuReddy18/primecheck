@@ -1,0 +1,32 @@
+replicaCount: 2
+
+image:
+  repository: primecheck
+  tag: local
+  pullPolicy: Never
+
+ingress:
+  host: primecheck.localtest.me
+  tls:
+    enabled: false
+
+serviceMonitor:
+  enabled: true
+
+prometheusRule:
+  enabled: true
+
+app:
+  tracing:
+    enabled: true
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+admin:
+  existingSecret: primecheck-admin
