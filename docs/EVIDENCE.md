@@ -39,6 +39,14 @@ deployment "primecheck" successfully rolled out
 
 The rollout refused to finish rather than replacing healthy pods with broken ones.
 
+## The release gate held
+
+Release run [39113807220](https://github.com/VinnuReddy18/primecheck/actions/runs/39113807220) resolved commit
+`9aec23a11ecfc664a6071be060dc34c8f8b48440` to digest
+`sha256:1d3b1359d334b930c33313a9ebd4f07e04001a58d16b5a756bb856555354130a`, then stopped on the `production`
+environment until a reviewer approved it. After approval the job confirmed the chart renders that exact digest, so
+what was approved is what gets deployed.
+
 ## The user journey on the local cluster
 
 Through the ingress, not a port forward:
