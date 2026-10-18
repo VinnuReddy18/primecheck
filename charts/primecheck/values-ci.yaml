@@ -1,0 +1,33 @@
+replicaCount: 2
+
+image:
+  repository: primecheck
+  tag: ci
+  pullPolicy: Never
+
+ingress:
+  enabled: false
+
+autoscaling:
+  enabled: false
+
+serviceMonitor:
+  enabled: false
+
+prometheusRule:
+  enabled: false
+
+networkPolicy:
+  enabled: false
+
+app:
+  tracing:
+    enabled: false
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi

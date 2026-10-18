@@ -1,0 +1,24 @@
+{{ .Chart.Name }} {{ .Chart.Version }} is released as {{ .Release.Name }} in namespace {{ .Release.Namespace }}.
+
+Image in use:
+  {{ include "primecheck.image" . }}
+
+Confirm the running version matches the commit you deployed:
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "primecheck.fullname" . }} 8000:{{ .Values.service.port }}
+  curl -s localhost:8000/version
+
+{{ if .Values.ingress.enabled -}}
+Reach the application at:
+  http{{ if .Values.ingress.tls.enabled }}s{{ end }}://{{ .Values.ingress.host }}
+{{- else -}}
+No ingress is enabled. Use the port forward above to reach the application.
+{{- end }}
+
+Roll back the previous release if this one misbehaves:
+  helm -n {{ .Release.Namespace }} rollback {{ .Release.Name }}
+
+{{ if and .Values.admin.enabled (not .Values.admin.existingSecret) -}}
+WARNING: the admin token in this release came from a values file. For anything beyond a local or
+ephemeral cluster, keep the token in a secret you manage outside the chart and point
+admin.existingSecret at it.
+{{- end }}
