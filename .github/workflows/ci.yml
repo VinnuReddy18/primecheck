@@ -90,6 +90,9 @@ jobs:
 
       - uses: docker/setup-buildx-action@v3
 
+      - name: resolve the registry path
+        run: echo "IMAGE=${REGISTRY}/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+
       - name: build
         uses: docker/build-push-action@v6
         with:
@@ -134,8 +137,8 @@ jobs:
           context: .
           push: true
           tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+            ${{ env.IMAGE }}:${{ github.sha }}
+            ${{ env.IMAGE }}:latest
           build-args: |
             GIT_SHA=${{ github.sha }}
             BUILD_TIME=${{ github.event.repository.updated_at }}
@@ -144,10 +147,13 @@ jobs:
       - name: record the digest
         if: github.event_name == 'push'
         run: |
-          echo "### image" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "commit: \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "digest: \`${{ steps.push.outputs.digest }}\`" >> $GITHUB_STEP_SUMMARY
+          {
+            echo "### image"
+            echo ""
+            echo "commit: \`${{ github.sha }}\`"
+            echo "image:  \`${IMAGE}:${{ github.sha }}\`"
+            echo "digest: \`${{ steps.push.outputs.digest }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
 
   e2e:
     name: deploy to a cluster and verify

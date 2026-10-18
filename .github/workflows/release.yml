@@ -22,6 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       sha: ${{ steps.resolve.outputs.sha }}
+      image: ${{ steps.resolve.outputs.image }}
       digest: ${{ steps.resolve.outputs.digest }}
     steps:
       - name: log in to the registry
@@ -36,7 +37,9 @@ jobs:
         run: |
           sha="${{ inputs.sha }}"
           if [ -z "$sha" ]; then sha="${GITHUB_SHA}"; fi
-          ref="${REGISTRY}/${IMAGE_NAME}:${sha}"
+          image="${REGISTRY}/${GITHUB_REPOSITORY,,}"
+          echo "image=$image" >> "$GITHUB_OUTPUT"
+          ref="${image}:${sha}"
           echo "resolving $ref"
           digest=$(docker buildx imagetools inspect "$ref" --format '{{json .Manifest}}' | jq -r .digest)
           if [ -z "$digest" ] || [ "$digest" = "null" ]; then
@@ -53,6 +56,10 @@ jobs:
     environment: production
     steps:
       - uses: actions/checkout@v4
+
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.16.3
 
       - name: record what was approved
         run: |
@@ -79,8 +86,8 @@ jobs:
         run: |
           helm template primecheck charts/primecheck \
             --namespace primecheck \
-            --set image.repository=${REGISTRY}/${IMAGE_NAME} \
+            --set image.repository=${{ needs.candidate.outputs.image }} \
             --set image.digest=${{ needs.candidate.outputs.digest }} \
             --set admin.existingSecret=primecheck-admin \
-            | grep -q "image: ${REGISTRY}/${IMAGE_NAME}@${{ needs.candidate.outputs.digest }}"
+            | grep -q "image: ${{ needs.candidate.outputs.image }}@${{ needs.candidate.outputs.digest }}"
           echo "the chart pins the approved digest"
