@@ -7,3 +7,5 @@ venv/
 .env.*
 *.pem
 *.key
+
+docs/evidence/
