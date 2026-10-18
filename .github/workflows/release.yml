@@ -1,0 +1,86 @@
+name: release
+
+on:
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: The commit to release. Defaults to the commit this workflow runs on.
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  packages: read
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  candidate:
+    name: resolve the candidate
+    runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.resolve.outputs.sha }}
+      digest: ${{ steps.resolve.outputs.digest }}
+    steps:
+      - name: log in to the registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: resolve the commit to an immutable digest
+        id: resolve
+        run: |
+          sha="${{ inputs.sha }}"
+          if [ -z "$sha" ]; then sha="${GITHUB_SHA}"; fi
+          ref="${REGISTRY}/${IMAGE_NAME}:${sha}"
+          echo "resolving $ref"
+          digest=$(docker buildx imagetools inspect "$ref" --format '{{json .Manifest}}' | jq -r .digest)
+          if [ -z "$digest" ] || [ "$digest" = "null" ]; then
+            echo "no image was published for commit $sha, run ci first"
+            exit 1
+          fi
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+
+  approve:
+    name: approve the release
+    runs-on: ubuntu-latest
+    needs: [candidate]
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: record what was approved
+        run: |
+          {
+            echo "### approved for release"
+            echo ""
+            echo "commit: \`${{ needs.candidate.outputs.sha }}\`"
+            echo "digest: \`${{ needs.candidate.outputs.digest }}\`"
+            echo ""
+            echo "Deploy it with:"
+            echo ""
+            echo '```'
+            echo "DIGEST=${{ needs.candidate.outputs.digest }} ./scripts/deploy.sh"
+            echo '```'
+            echo ""
+            echo "Then confirm the running build reports the same commit:"
+            echo ""
+            echo '```'
+            echo "curl -s http://primecheck.localtest.me/version"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: confirm the chart deploys the approved digest
+        run: |
+          helm template primecheck charts/primecheck \
+            --namespace primecheck \
+            --set image.repository=${REGISTRY}/${IMAGE_NAME} \
+            --set image.digest=${{ needs.candidate.outputs.digest }} \
+            --set admin.existingSecret=primecheck-admin \
+            | grep -q "image: ${REGISTRY}/${IMAGE_NAME}@${{ needs.candidate.outputs.digest }}"
+          echo "the chart pins the approved digest"
