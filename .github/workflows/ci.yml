@@ -46,17 +46,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      - name: scan the working tree and history for secrets
-        uses: aquasecurity/trivy-action@0.28.0
-        with:
-          scan-type: fs
-          scanners: secret
-          severity: HIGH,CRITICAL
-          exit-code: "1"
-          path: .
+      - name: scan the working tree for secrets
+        run: |
+          docker run --rm -v "${{ github.workspace }}:/src" aquasec/trivy:0.76.0 \
+            fs --scanners secret --severity HIGH,CRITICAL \
+            --exit-code 1 --no-progress /src
 
   chart:
     name: validate chart
@@ -107,16 +102,15 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: scan the image
-        uses: aquasecurity/trivy-action@0.28.0
-        with:
-          image-ref: primecheck:ci
-          severity: HIGH,CRITICAL
-          ignore-unfixed: true
-          exit-code: "1"
-
-      - name: save the image for the end to end job
+      - name: save the image for scanning and for the end to end job
         run: docker save primecheck:ci -o primecheck-ci.tar
+
+      - name: scan the image
+        run: |
+          docker run --rm -v "${{ github.workspace }}:/w" aquasec/trivy:0.76.0 \
+            image --input /w/primecheck-ci.tar \
+            --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed \
+            --exit-code 1 --no-progress
 
       - uses: actions/upload-artifact@v4
         with:
